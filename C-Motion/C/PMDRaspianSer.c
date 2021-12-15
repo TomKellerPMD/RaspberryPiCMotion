@@ -1,10 +1,3 @@
-//Limits of Liability - Under no circumstances shall Performance Motion Devices, Inc. or its affiliates, partners, or suppliers be liable for any indirect
-// incidental, consequential, special or exemplary damages arising out or in connection with the use this example,
-// whether or not the damages were foreseeable and whether or not Performance Motion Devices, Inc. was advised of the possibility of such damages.
-// Determining the suitability of this example is the responsibility of the user and subsequent usage is at their sole risk and discretion.
-// There are no licensing restrictions associated with this example.
-
-
 //  PMDRaspianSer.c -- Rasperry Pi Linux serial interface command/data transfer functions
 //  Replaces PMDW32Ser.c in standard C-Motion libary
 //  Performance Motion Devices, Inc.
@@ -26,7 +19,9 @@
 #include <unistd.h>			//Used for UART
 #include <fcntl.h>			//Used for UART
 #include <termios.h>		//Used for UART
+#include <sys/ioctl.h>
 #include <errno.h>
+#include <time.h>
 
 // only need to include this if diagnostics mode is used
 #include "PMDdiag.h"
@@ -98,7 +93,13 @@ PMDuint16 PMDSerial_InitPort(void* transport_data)
     char szPort[13] = "/dev/serial0";
     
     PMDSerialIOData* SIOtransport_data = (PMDSerialIOData*)transport_data;
+
+#ifdef USE_DELAY 
+    SIOtransport_data->port = open(szPort, O_RDWR | O_NONBLOCK | O_NOCTTY);
+#else    
    	SIOtransport_data->port = open(szPort, O_RDWR | O_NOCTTY);
+#endif
+
     SIOtransport_data->hPort=SIOtransport_data->port;
     
    if (SIOtransport_data->hPort == INVALID_HANDLE_VALUE )
@@ -319,6 +320,13 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
     PMDuint8* pbuff = &buffer[0];
     PMDuint8 tempbuffer[20];
     PMDuint16 ProcessorError;
+    long int start_time;
+    long int time_difference;
+    struct timespec gettime_now;
+    int delay_us;
+    int port_status;
+    
+    delay_us=20000;
 
     if( SIOtransport_data->hPort == INVALID_HANDLE_VALUE ) return PMD_ERR_NotConnected;
 
@@ -350,34 +358,66 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
    
     if( bytes != c )
         return PMD_ERR_CommPortWrite;
+        
+     //clr_rts();   // block until data has been written
+     port_status=1;
+     while(port_status) ioctl(SIOtransport_data->hPort,TIOCOUTQ,&port_status);   
 
      //Read() will return as soon as one byte appears, not sure why?
 #ifdef USE_DELAY     
      //Delay read until response is complete 
      //10 bits per byte
-     delay=(nExpected*10*1000)/SIOtransport_data->baud+1;
-     PMDTaskWait(delay);
+    delay=(nExpected*10*1000)/SIOtransport_data->baud+1;
+    PMDTaskWait(delay+3);
 #endif     
-
+     
     /* read return data */
     if (SIOtransport_data->protocol != PMDSerialProtocolMultiDropUsingIdleLineDetection)
     {
-      sumbytes=0;
-      while(sumbytes<nExpected)
-      {
-           bytes = read(SIOtransport_data->hPort, tempbuffer, nExpected);
-           for(i=0;i<bytes;i++) buffer[sumbytes+i]=tempbuffer[i];
-           sumbytes+=bytes;
-      }
-      bytes=sumbytes;
-      if ( bytes ==0 )
-             return PMD_ERR_CommTimeoutError;
+        sumbytes=0;
+      
+        clock_gettime(CLOCK_REALTIME,&gettime_now);
+        start_time=gettime_now.tv_nsec;
+        while(sumbytes<nExpected)
+        {
+            bytes = read(SIOtransport_data->hPort, tempbuffer, nExpected);
+            for(i=0;i<bytes;i++) buffer[sumbytes+i]=tempbuffer[i];
+            sumbytes+=bytes;
+            
+            // check for timeout
+            clock_gettime(CLOCK_REALTIME,&gettime_now);
+            time_difference=gettime_now.tv_nsec-start_time;
+            if(time_difference<0)
+            {    
+                 printf("Less than zero test\n");
+                // while(1);
+                 time_difference+=1000000000;
+             }
+            if(time_difference > (delay_us*1000))
+            {
+                printf("Delay start %d  end %d\n",start_time,gettime_now.tv_nsec); 
+                break;
+            }
+        }
+        bytes=sumbytes;
+        
+        if ( bytes ==0 )
+        {
+            if(SIOtransport_data->bDiagnostics)  printf("Timeout!!\n");   
+            return PMD_ERR_CommTimeoutError;
+        }
+        if(bytes!=nExpected)
+        {
+            if(SIOtransport_data->bDiagnostics)  printf("Wrong Numer of Bytes.  Got: %d  Expected: %d\n",bytes,nExpected);   
+            return PMD_ERR_CommandError;
+        }
     }
     else
     {
         // idle line returns an extra byte containing the slave address
         bytes = read(SIOtransport_data->hPort, buffer, nExpected+1);
-
+               
+        
         if ( bytes == 0 )
             return PMD_ERR_CommTimeoutError;
 
@@ -404,15 +444,17 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
         rCt = 0;
 
     if( sum )
+    {
+        if(SIOtransport_data->bDiagnostics) PMDprintf("Checksum Error: bytes received %d\n",bytes);
         return PMD_ERR_ChecksumError;
-
+    }
+    
     /* byte swap return data */
     for( i=0, c=2; i<rCt; i++ )
     {
         rDat[i]  = (PMDuint16)((pbuff[c++])<<8);
         rDat[i] |= (PMDuint16)(pbuff[c++]);
     }
-
 
     if (ProcessorError && SIOtransport_data->bDiagnostics)
     {
@@ -440,7 +482,10 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
     else
     {
         if ( bytes != (unsigned)(nExpected) )
+        {
+            if(SIOtransport_data->bDiagnostics) PMDprintf("Error: Unexpected Number of Bytes %d\n",bytes);
             return PMD_ERR_CommTimeoutError;
+        }
     }
 
     return ( ProcessorError );
@@ -520,7 +565,7 @@ void PMDSerial_InitData(PMDSerialIOData* transport_data)
     // by default always verify the checksum
     transport_data->bVerifyChecksum = 1;
     // by default disable diagnostics
-    transport_data->bDiagnostics = 0;
+    transport_data->bDiagnostics = 1;
 }
 
 // ------------------------------------------------------------------------
