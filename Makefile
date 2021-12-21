@@ -21,7 +21,8 @@ vpath %.c $(C_MOTION_C) ./C
 #CFLAGS = -g $(OPT) -I $(C_MOTION_INC) $(CDEFS)
 CFLAGS = -I $(C_MOTION_INC)
 CPPFLAGS = -I $(C_MOTION_INC) -I ../ -I ./Source -I ./ -std=c++11
-LDFLAGS = -g -static-libgcc -static-libstdc++
+LDFLAGS = -g -static-libgcc 
+#-static-libstdc++
 
 obj/%.o : %.c
 	$(CC) -c $(CFLAGS) $< -o $@
@@ -39,19 +40,25 @@ c_motion_src = C-Motion.c \
 		PMDdiag.c \
 		PMDutil.c \
 		Examples.c \
-		PMDcommon.c 
-
-
+		PMDcommon.c \
+	    PMDpar.c
+	    
 c_motion_obj = $(c_motion_src:%.c=obj/%.o)
+
 
 ## create a cpp_src variable is you need are compiling c++
 #cpp_obj = $(cpp_src:%.cpp=obj/%.o)
 
 c_motion_dep = $(c_motion_src:%.c=obj/%.mak)
 
+	
 PMDApp: obj $(c_motion_obj) obj/PMDApp.o
 	$(LD) $(LDFLAGS) -o $@ obj/PMDApp.o $(c_motion_obj) 
-#$(cpp_obj)
+		
+PMDPC104: obj $(c_motion_obj) obj/PC104App.o 
+	$(LD) $(LDFLAGS) -o $@ obj/PC104App.o $(c_motion_obj)
+	
+	#$(cpp_obj)
 
 obj:
 	mkdir obj

@@ -1,12 +1,15 @@
 //  PMDRaspianSer.c -- Rasperry Pi Linux serial interface command/data transfer functions
 //  Replaces PMDW32Ser.c in standard C-Motion libary
 //  Performance Motion Devices, Inc.
-//  TLK 8/23/2021
+//  TLK 10/15/2021
 //
 
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <termios.h>		//Used for UART
+#include <sys/ioctl.h>
+#include <errno.h>
 
 #include "PMDtypes.h"
 #include "PMDecode.h"
@@ -15,23 +18,10 @@
 #include "PMDsys.h"
 #include "PMDW32Ser.h"
 
-#include <stdio.h>
-#include <unistd.h>			//Used for UART
-#include <fcntl.h>			//Used for UART
-#include <termios.h>		//Used for UART
-#include <sys/ioctl.h>
-#include <errno.h>
-#include <time.h>
 
 // only need to include this if diagnostics mode is used
 #include "PMDdiag.h"
 #define error_message printf
-
-//#define USE_DELAY
-//Two methods for reading the response are avaialble. 
-//1. Add a delay so that the entire response is avaialble when the first read() is called
-//2. Call read() mulitple times until all expected bytes are received
-
 
 // ------------------------------------------------------------------------
 PMDuint16 PMDSerial_GetStatus(void* transport_data)
@@ -137,12 +127,12 @@ PMDuint16 PMDSerial_InitPort(void* transport_data)
         return PMD_ERR_InvalidSerialPort;
     }
 
-  //  if( !PMDSerial_SetTimeout( transport_data, 1000 ) )
-  //  {
-  //      close( SIOtransport_data->hPort );
-   //     SIOtransport_data->hPort = INVALID_HANDLE_VALUE;
-    //    return PMD_ERR_InvalidSerialPort;
-   // }
+    if( !PMDSerial_SetTimeout( transport_data, 100 ) )
+    {
+        close( SIOtransport_data->hPort );
+        SIOtransport_data->hPort = INVALID_HANDLE_VALUE;
+        return PMD_ERR_InvalidSerialPort;
+    }
 
     return PMD_ERR_OK;
 }
@@ -248,7 +238,7 @@ BOOL PMDSerial_SetConfig(void* transport_data, PMDuint32 baud, PMDuint8 parity)
         This is a counted read that is satisfied only when at least VMIN characters have been transferred to the caller's buffer - there is no timing component involved. This read can be satisfied from the driver's input queue (where the call could return immediately), or by waiting for new data to arrive: in this respect the call could block indefinitely. We believe that it's undefined behavior if nbytes is less then VMIN. 
     */
     tty.c_cc[VMIN] = 0;      /* 1=block until n bytes are received */
-    tty.c_cc[VTIME] = 0xF;     /* block until a timer expires (n * 100 mSec.) */
+    tty.c_cc[VTIME] = 0;     /* block until a timer expires (n * 100 mSec.) */
 
     tcflush(SIOtransport_data->hPort, TCIFLUSH); 
     if (errno = tcsetattr (SIOtransport_data->hPort, TCSANOW, &tty) != 0)
@@ -280,6 +270,8 @@ BOOL PMDSerial_SetTimeout(void* transport_data,long msec)
 
     tty.c_cc[VTIME] = msec / 100;     /* block until a timer expires (n * 100 mSec.) */
 
+    printf("Timeout %d\n",tty.c_cc[VTIME]);
+    
     if (error = tcsetattr (fd, TCSANOW, &tty) != 0)
     {
         error_message ("error %d from tcsetattr", errno);
@@ -320,14 +312,8 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
     PMDuint8* pbuff = &buffer[0];
     PMDuint8 tempbuffer[20];
     PMDuint16 ProcessorError;
-    long int start_time;
-    long int time_difference;
-    struct timespec gettime_now;
-    int delay_us;
-    int port_status;
+    int port_status=1;
     
-    delay_us=20000;
-
     if( SIOtransport_data->hPort == INVALID_HANDLE_VALUE ) return PMD_ERR_NotConnected;
 
     /* Clear address byte & checksum byte */
@@ -359,45 +345,21 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
     if( bytes != c )
         return PMD_ERR_CommPortWrite;
         
-     //clr_rts();   // block until data has been written
-     port_status=1;
+     //wait for transmission
      while(port_status) ioctl(SIOtransport_data->hPort,TIOCOUTQ,&port_status);   
 
-     //Read() will return as soon as one byte appears, not sure why?
-#ifdef USE_DELAY     
-     //Delay read until response is complete 
-     //10 bits per byte
-    delay=(nExpected*10*1000)/SIOtransport_data->baud+1;
-    PMDTaskWait(delay+3);
-#endif     
-     
+          
     /* read return data */
     if (SIOtransport_data->protocol != PMDSerialProtocolMultiDropUsingIdleLineDetection)
     {
         sumbytes=0;
-      
-        clock_gettime(CLOCK_REALTIME,&gettime_now);
-        start_time=gettime_now.tv_nsec;
-        while(sumbytes<nExpected)
+        bytes=1;
+        while(bytes)
         {
             bytes = read(SIOtransport_data->hPort, tempbuffer, nExpected);
             for(i=0;i<bytes;i++) buffer[sumbytes+i]=tempbuffer[i];
             sumbytes+=bytes;
-            
-            // check for timeout
-            clock_gettime(CLOCK_REALTIME,&gettime_now);
-            time_difference=gettime_now.tv_nsec-start_time;
-            if(time_difference<0)
-            {    
-                 printf("Less than zero test\n");
-                // while(1);
-                 time_difference+=1000000000;
-             }
-            if(time_difference > (delay_us*1000))
-            {
-                printf("Delay start %d  end %d\n",start_time,gettime_now.tv_nsec); 
-                break;
-            }
+            if(sumbytes==nExpected) break;
         }
         bytes=sumbytes;
         
