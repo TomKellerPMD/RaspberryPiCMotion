@@ -23,6 +23,9 @@
 #include "PMDdiag.h"
 #define error_message printf
 
+// string input from command line
+char LinuxCommPort[13] = "";
+
 // ------------------------------------------------------------------------
 PMDuint16 PMDSerial_GetStatus(void* transport_data)
 {
@@ -80,24 +83,18 @@ PMDresult PMDSerial_Close(void* transport_data)
 // ------------------------------------------------------------------------
 PMDuint16 PMDSerial_InitPort(void* transport_data)
 {
-    char szPort[13] = "/dev/serial0";
-    
+      
     PMDSerialIOData* SIOtransport_data = (PMDSerialIOData*)transport_data;
 
-#ifdef USE_DELAY 
-    SIOtransport_data->port = open(szPort, O_RDWR | O_NONBLOCK | O_NOCTTY);
-#else    
-   	SIOtransport_data->port = open(szPort, O_RDWR | O_NOCTTY);
-#endif
-
+   	SIOtransport_data->port = open(LinuxCommPort, O_RDWR | O_NOCTTY);
     SIOtransport_data->hPort=SIOtransport_data->port;
     
    if (SIOtransport_data->hPort == INVALID_HANDLE_VALUE )
     {
         return PMD_ERR_OpeningPort;
     }
-    else printf("Opened port %d\n",SIOtransport_data->port);
-   
+ 
+    else printf("Opened port %s\n",LinuxCommPort);
 
      //OPEN THE UART
     //The flags (defined in fcntl.h):
@@ -159,7 +156,7 @@ BOOL PMDSerial_SetConfig(void* transport_data, PMDuint32 baud, PMDuint8 parity)
         return FALSE;
     }
 
-     printf("baud=%d\n",baud);
+ //    printf("baud=%d\n",baud);
     switch(baud)
     {
         case    2400 : 
@@ -270,7 +267,7 @@ BOOL PMDSerial_SetTimeout(void* transport_data,long msec)
 
     tty.c_cc[VTIME] = msec / 100;     /* block until a timer expires (n * 100 mSec.) */
 
-    printf("Timeout %d\n",tty.c_cc[VTIME]);
+    printf("Timeout set to %dms\n",tty.c_cc[VTIME]*100);
     
     if (error = tcsetattr (fd, TCSANOW, &tty) != 0)
     {
@@ -370,7 +367,7 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
         }
         if(bytes!=nExpected)
         {
-            if(SIOtransport_data->bDiagnostics)  printf("Wrong Numer of Bytes.  Got: %d  Expected: %d\n",bytes,nExpected);   
+            if(SIOtransport_data->bDiagnostics)  printf("Wrong Numer of Bytes.  Got: %ld  Expected: %d\n",bytes,nExpected);   
             return PMD_ERR_CommandError;
         }
     }
@@ -407,7 +404,7 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
 
     if( sum )
     {
-        if(SIOtransport_data->bDiagnostics) PMDprintf("Checksum Error: bytes received %d\n",bytes);
+        if(SIOtransport_data->bDiagnostics) PMDprintf("Checksum Error: bytes received %ld\n",bytes);
         return PMD_ERR_ChecksumError;
     }
     
@@ -445,7 +442,7 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
     {
         if ( bytes != (unsigned)(nExpected) )
         {
-            if(SIOtransport_data->bDiagnostics) PMDprintf("Error: Unexpected Number of Bytes %d\n",bytes);
+            if(SIOtransport_data->bDiagnostics) PMDprintf("Error: Unexpected Number of Bytes %ld\n",bytes);
             return PMD_ERR_CommTimeoutError;
         }
     }
