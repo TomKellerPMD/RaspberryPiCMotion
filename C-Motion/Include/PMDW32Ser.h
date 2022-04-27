@@ -54,6 +54,7 @@ PMDresult PMDSerial_WriteByte(void* transport_data, PMDuint8 data);
 PMDresult PMDSerial_ReadByte(void* transport_data, PMDuint8* data);
 PMDresult PMDSerial_FlushRecv(void* transport_data);
 PMDresult PMDSerial_Sync(void* transport_data);
+extern char LinuxCommPort[];
 
 
 
