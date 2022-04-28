@@ -41,10 +41,9 @@ c_motion_src = C-Motion.c \
 		PMDutil.c \
 		Examples.c \
 		PMDcommon.c \
-	    PMDpar.c
+		
 	    
 c_motion_obj = $(c_motion_src:%.c=obj/%.o)
-
 
 ## create a cpp_src variable is you need are compiling c++
 #cpp_obj = $(cpp_src:%.cpp=obj/%.o)
@@ -54,9 +53,10 @@ c_motion_dep = $(c_motion_src:%.c=obj/%.mak)
 	
 PMDApp: obj $(c_motion_obj) obj/PMDApp.o
 	$(LD) $(LDFLAGS) -o $@ obj/PMDApp.o $(c_motion_obj) 
+	
 		
-PMDPC104: obj $(c_motion_obj) obj/PC104App.o 
-	$(LD) $(LDFLAGS) -o $@ obj/PC104App.o $(c_motion_obj)
+PMDPC104: obj $(c_motion_obj) obj/PC104App.o obj/PMDpar.o
+	$(LD) $(LDFLAGS) -o $@ obj/PC104App.o $(c_motion_obj) obj/PMDpar.o
 	
 	#$(cpp_obj)
 
@@ -69,7 +69,6 @@ c_motion: obj $(c_motion_obj)
 clean:
 	-rm -f obj/*.o
 	-rm -f obj/*.mak
-	-rm -f obj/Source/*.o
 
 -include $(c_motion_dep)
 

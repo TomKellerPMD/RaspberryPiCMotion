@@ -17,8 +17,10 @@ void main()
 	PMDuint16 generation, motorType, numberAxes, chip_count, custom, major, minor;
 	PMDAxisHandle hAxis1; 
 	PMDresult result;
+	
+	char localport[20]="/dev/ttyUSB0";
 
-	result=PMDSetupAxisInterface_Serial( &hAxis1, PMDAxis1, 0 );
+	result=PMDSetupAxisInterface_Serial( &hAxis1, PMDAxis1, localport );
 	if(result)
 	{
 		printf("Error:Could not open serial port code=%x\n",result);

@@ -23,10 +23,8 @@ typedef struct tagPMDSerialIOData {
 	PMDuint16 multiDropAddress;
 	PMDuint16 protocol;
 
-	PMDuint8 port;
-
-	int hPort;
-	//HANDLE hPort;
+	char port[25];
+    int hPort;
 	PMDuint32 baud;
 	PMDuint8 parity;
 	PMDuint8 stop;
@@ -42,7 +40,7 @@ PMDresult PMDSerial_Init(PMDAxisHandle* axis_handle);
 void PMDCreateMultiDropHandle(PMDAxisHandle* dest_axis_handle, PMDAxisHandle* src_axis_handle, PMDAxis axis_number, PMDuint8 nodeID);
 
 // call this function to initialize the interface
-PMDresult PMDSetupAxisInterface_Serial(PMDAxisHandle* axis_handle, PMDAxis axis_number, PMDuint8 port_number);
+PMDresult PMDSetupAxisInterface_Serial(PMDAxisHandle* axis_handle, PMDAxis axis_number, char* port_number);
 
 // support functions that may be called directly
 // once the port is initialized
@@ -54,7 +52,5 @@ PMDresult PMDSerial_WriteByte(void* transport_data, PMDuint8 data);
 PMDresult PMDSerial_ReadByte(void* transport_data, PMDuint8* data);
 PMDresult PMDSerial_FlushRecv(void* transport_data);
 PMDresult PMDSerial_Sync(void* transport_data);
-extern char LinuxCommPort[];
-
 
 #endif

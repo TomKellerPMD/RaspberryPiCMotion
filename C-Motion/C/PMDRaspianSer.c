@@ -23,8 +23,6 @@
 #include "PMDdiag.h"
 #define error_message printf
 
-// string input from command line
-char LinuxCommPort[13] = "";
 
 // ------------------------------------------------------------------------
 PMDuint16 PMDSerial_GetStatus(void* transport_data)
@@ -86,15 +84,16 @@ PMDuint16 PMDSerial_InitPort(void* transport_data)
       
     PMDSerialIOData* SIOtransport_data = (PMDSerialIOData*)transport_data;
 
-   	SIOtransport_data->port = open(LinuxCommPort, O_RDWR | O_NOCTTY);
-    SIOtransport_data->hPort=SIOtransport_data->port;
+   	SIOtransport_data->hPort = open(SIOtransport_data->port, O_RDWR | O_NOCTTY);
+    //SIOtransport_data->hPort=SIOtransport_data->port;
     
+   printf("Attempting to open %s...",SIOtransport_data->port);
    if (SIOtransport_data->hPort == INVALID_HANDLE_VALUE )
     {
         return PMD_ERR_OpeningPort;
     }
  
-    else printf("Opened port %s\n",LinuxCommPort);
+    else printf("Opened.\n");
 
      //OPEN THE UART
     //The flags (defined in fcntl.h):
@@ -519,7 +518,7 @@ void PMDSerial_InitData(PMDSerialIOData* transport_data)
     transport_data->baud = 57600;
 
     // default port is COM1
-    transport_data->port = 1;
+    strcpy(transport_data->port,"");
 
     // by default always verify the checksum
     transport_data->bVerifyChecksum = 1;
@@ -572,7 +571,7 @@ void PMDCreateMultiDropHandle(PMDAxisHandle* dest_axis_handle, PMDAxisHandle* sr
 /*****************************************************************************
 Set port_number to COMn port number (1 = COM1, 0 = default)
 *****************************************************************************/
-PMDresult PMDSetupAxisInterface_Serial(PMDAxisHandle* axis_handle, PMDAxis axis_number, PMDuint8 port_number)
+PMDresult PMDSetupAxisInterface_Serial(PMDAxisHandle* axis_handle, PMDAxis axis_number, char port_number[20])
 {
     PMDSerialIOData* transport_data;
 
@@ -591,7 +590,7 @@ PMDresult PMDSetupAxisInterface_Serial(PMDAxisHandle* axis_handle, PMDAxis axis_
     // assign port number that this axis handle will use
     // if 0 use default (COM1)
     if (port_number)
-        transport_data->port = port_number;
+        strcpy(transport_data->port,port_number);
 
     axis_handle->transport_data = (void*) transport_data;
 
