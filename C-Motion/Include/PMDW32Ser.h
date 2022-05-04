@@ -9,6 +9,7 @@ typedef int BOOL;
 #endif
 
 #define ONESTOPBIT 0
+#define LINUXCOMPORT_STRG_LNGTH 60
 typedef unsigned long       DWORD;
 
 //  PMDw32ser.h -- Win32 serial IO
@@ -22,9 +23,8 @@ typedef struct tagPMDSerialIOData {
 
 	PMDuint16 multiDropAddress;
 	PMDuint16 protocol;
-
-	char port[25];
-    int hPort;
+	char port[LINUXCOMPORT_STRG_LNGTH];
+	int hPort;
 	PMDuint32 baud;
 	PMDuint8 parity;
 	PMDuint8 stop;
