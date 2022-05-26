@@ -67,7 +67,8 @@ void OutP16Bit(PMDuint16 port, PMDuint16 dataword)
 
 PMDuint16 InP16Bit(PMDuint16 port)
 {
-        return inw(port);
+        
+    return inw(port);
 }
 
 void OutP8Bit(PMDuint16 port, PMDuint16 dataword)
