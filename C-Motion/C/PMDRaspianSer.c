@@ -373,8 +373,16 @@ PMDresult PMDSerial_Send(void* transport_data, PMDuint8 xCt, PMDuint16* xDat, PM
     else
     {
         // idle line returns an extra byte containing the slave address
-        bytes = read(SIOtransport_data->hPort, buffer, nExpected+1);
-               
+        sumbytes=0;
+        bytes=1;
+        while(bytes)
+        {
+            bytes = read(SIOtransport_data->hPort, tempbuffer, nExpected);
+            for(i=0;i<bytes;i++) buffer[sumbytes+i]=tempbuffer[i];
+            sumbytes+=bytes;
+            if(sumbytes==nExpected) break;
+        }
+        bytes=sumbytes;      
         
         if ( bytes == 0 )
             return PMD_ERR_CommTimeoutError;
